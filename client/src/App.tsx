@@ -1,11 +1,18 @@
-import { BrowserRouter as Router, Routes, Route, Outlet, Navigate } from 'react-router-dom';
-import MainLayout from './layouts/MainLayout';
-import Studio from './pages/Studio';
-import Auth from './pages/Auth';
-import Dashboard from './pages/Dashboard';
-import Settings from './pages/Settings';
-import LegalPage from './pages/Legal';
-import { useAuthStore } from './store/useAuthStore';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Outlet,
+  Navigate,
+} from "react-router-dom";
+import MainLayout from "./layouts/MainLayout";
+import Studio from "./pages/Studio";
+import Auth from "./pages/Auth";
+import Dashboard from "./pages/Dashboard";
+import Settings from "./pages/Settings";
+import LegalPage from "./pages/Legal";
+import { useAuthStore } from "./store/useAuthStore";
+import { useEffect } from "react";
 
 // This component will be used to wrap the authenticated routes
 const AppLayout = () => (
@@ -15,10 +22,25 @@ const AppLayout = () => (
 );
 
 const ProtectedRoute = () => {
-    const { isAuthenticated } = useAuthStore();
-    return isAuthenticated ? <AppLayout /> : <Navigate to="/auth" replace />;
-};
+  const { isAuthenticated, token } = useAuthStore();
 
+  // Debug logging
+  useEffect(() => {
+    console.log(
+      "ProtectedRoute - isAuthenticated:",
+      isAuthenticated,
+      "token:",
+      token ? "exists" : "none",
+    );
+  }, [isAuthenticated, token]);
+
+  if (!isAuthenticated) {
+    console.log("Not authenticated, redirecting to /auth");
+    return <Navigate to="/auth" replace />;
+  }
+
+  return <AppLayout />;
+};
 
 function App() {
   return (
@@ -32,6 +54,7 @@ function App() {
         {/* Authenticated routes */}
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/project/:id" element={<Studio />} />
           <Route path="/settings" element={<Settings />} />
         </Route>

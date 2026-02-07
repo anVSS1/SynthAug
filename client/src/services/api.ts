@@ -1,10 +1,10 @@
-import axios from 'axios';
-import { useAuthStore } from '../store/useAuthStore';
+import axios from "axios";
+import { useAuthStore } from "../store/useAuthStore";
 
 const api = axios.create({
-  baseURL: '/api', // Proxies to the backend server (e.g., http://localhost:5000/api)
+  baseURL: "/api", // Proxies to the backend server (e.g., http://localhost:5000/api)
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
@@ -13,13 +13,31 @@ api.interceptors.request.use(
   (config) => {
     const token = useAuthStore.getState().token;
     if (token && config.headers) {
-      config.headers['Authorization'] = `Bearer ${token}`;
+      config.headers["Authorization"] = `Bearer ${token}`;
     }
     return config;
   },
   (error) => {
+    console.error("Request interceptor error:", error);
     return Promise.reject(error);
-  }
+  },
+);
+
+// Response interceptor to handle errors globally
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error("API Error:", error);
+
+    // If unauthorized, logout user
+    if (error.response?.status === 401) {
+      console.log("Unauthorized - logging out");
+      useAuthStore.getState().logout();
+      window.location.href = "/auth";
+    }
+
+    return Promise.reject(error);
+  },
 );
 
 export default api;
