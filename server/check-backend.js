@@ -34,7 +34,6 @@ console.log("\n2️⃣  Checking environment variables...");
 const requiredVars = {
   MONGO_URI: process.env.MONGO_URI,
   JWT_SECRET: process.env.JWT_SECRET,
-  AI_ENGINE_URL: process.env.AI_ENGINE_URL,
   PORT: process.env.PORT,
 };
 
@@ -103,28 +102,51 @@ if (jwtSecret) {
   }
 }
 
-// Check AI Engine URL
-console.log("\n5️⃣  Checking AI Engine URL...");
+// Check AI Engine URLs
+console.log("\n5️⃣  Checking AI Engine URLs...");
 const aiUrl = process.env.AI_ENGINE_URL;
-if (aiUrl) {
-  if (aiUrl.includes("ngrok")) {
-    console.log("   ✅ Ngrok URL detected");
-    console.log("   ⚠️  Remember: Ngrok URLs change when you restart Colab!");
-  } else if (aiUrl.includes("placeholder")) {
-    console.log("   ⚠️  Still using placeholder URL");
-    console.log("       Update this after starting Google Colab notebook");
-  } else {
-    console.log("   ✅ Custom URL configured");
+const tabularUrl = process.env.TABULAR_ENGINE_URL;
+
+if (!aiUrl && !tabularUrl) {
+  console.log("   ❌ No AI engine URL configured");
+  console.log(
+    "       Set AI_ENGINE_URL for image projects or TABULAR_ENGINE_URL for tabular projects",
+  );
+  hasErrors = true;
+} else {
+  if (aiUrl) {
+    if (aiUrl.includes("ngrok")) {
+      console.log("   ✅ AI_ENGINE_URL: Ngrok URL detected");
+      console.log("   ⚠️  Remember: Ngrok URLs change when you restart Colab!");
+    } else if (aiUrl.includes("placeholder")) {
+      console.log("   ⚠️  AI_ENGINE_URL: Still using placeholder URL");
+      console.log("       Update this after starting Google Colab notebook");
+    } else {
+      console.log("   ✅ AI_ENGINE_URL: Custom URL configured");
+    }
+  }
+
+  if (tabularUrl) {
+    console.log("   ✅ TABULAR_ENGINE_URL configured");
   }
 }
 
+// Check AI Engine Secret
+console.log("\n6️⃣  Checking AI Engine Secret...");
+if (process.env.AI_ENGINE_SECRET) {
+  console.log("   ✅ AI_ENGINE_SECRET configured");
+} else {
+  console.log("   ⚠️  AI_ENGINE_SECRET is not set");
+  console.log("       Recommended to secure /api/proxy/:projectId/webhook");
+}
+
 // Check port
-console.log("\n6️⃣  Checking port configuration...");
+console.log("\n7️⃣  Checking port configuration...");
 const port = process.env.PORT || 5000;
 console.log(`   ✅ Server will run on port ${port}`);
 
 // Check if node_modules exists
-console.log("\n7️⃣  Checking dependencies...");
+console.log("\n8️⃣  Checking dependencies...");
 const nodeModulesPath = path.join(__dirname, "node_modules");
 if (!fs.existsSync(nodeModulesPath)) {
   console.log("   ❌ node_modules NOT FOUND!");

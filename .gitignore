@@ -70,3 +70,29 @@ ngrok.yml
 *.pem
 *.key
 .env.backup
+
+# Tabular Engine
+tabular_engine/workdir/
+tabular_engine/*.log
+tabular_engine/__pycache__/
+tabular_engine/*.pyc
+
+# AI Training outputs
+*.zip
+*.csv
+generated_images/
+datasets/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.pdf
+*.synctex.gz
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+.texpadtmp/
+_minted-*/

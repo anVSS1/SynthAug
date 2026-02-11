@@ -1,9 +1,9 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const ProjectSchema = new mongoose.Schema({
   owner: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: "User",
     required: true,
   },
   name: {
@@ -13,24 +13,36 @@ const ProjectSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['idle', 'uploading', 'training', 'completed', 'failed'],
-    default: 'idle',
+    enum: ["idle", "uploading", "training", "completed", "failed"],
+    default: "idle",
   },
   config: {
+    dataType: {
+      type: String,
+      enum: ["image", "tabular"],
+      default: "image",
+    },
     preset: {
       type: String,
-      enum: ['draft', 'studio'],
-      default: 'draft',
+      enum: ["draft", "studio"],
+      default: "draft",
     },
     count: {
       type: Number,
       default: 500,
+    },
+    tabularModel: {
+      type: String,
+      enum: ["ctgan", "gaussian"],
+      default: "ctgan",
     },
   },
   metadata: {
     originalFileSize: Number,
     originalFileCount: Number,
     resultFileSize: Number,
+    generatedRows: Number,
+    columnCount: Number,
     processingTime: Number,
     uploadedAt: Date,
     completedAt: Date,
@@ -38,7 +50,7 @@ const ProjectSchema = new mongoose.Schema({
   logs: {
     type: [String],
     default: [],
-    validate: [arrayLimit, '{PATH} exceeds the limit of 100'],
+    validate: [arrayLimit, "{PATH} exceeds the limit of 100"],
   },
   createdAt: {
     type: Date,
@@ -54,9 +66,9 @@ function arrayLimit(val) {
   return val.length <= 100;
 }
 
-ProjectSchema.pre('save', function(next) {
+ProjectSchema.pre("save", function (next) {
   this.updatedAt = Date.now();
   next();
 });
 
-module.exports = mongoose.model('Project', ProjectSchema);
+module.exports = mongoose.model("Project", ProjectSchema);

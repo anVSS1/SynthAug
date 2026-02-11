@@ -1,0 +1,1006 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{enumitem}
+
+% Configure hyperref
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=blue,
+    urlcolor=blue,
+    pdftitle={SynthAug Project Report},
+    pdfauthor={Development Team}
+}
+
+% Configure listings for code
+\lstset{
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray}\itshape,
+    stringstyle=\color{red},
+    breaklines=true,
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    frame=single,
+    showstringspaces=false,
+    language=Python
+}
+
+% Header and footer
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small SynthAug Project Report}
+\fancyhead[R]{\small \thepage}
+\fancyfoot[C]{\small February 2026}
+
+\begin{document}
+
+% Title Page
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+    
+    {\Large \textbf{University of Science of Chouaib Doukkali}}\\[0.2cm]
+    {\large El Jadida}\\[0.3cm]
+    {\large Department of Information Technology}\\[2cm]
+    
+    \rule{\textwidth}{1pt}\\[2cm]
+    
+    {\Huge \textbf{SynthAug}}\\[0.5cm]
+    {\Large AI SaaS Platform for Synthetic Data Generation}\\[0.2cm]
+    {\large \textit{Powered by Projected GAN Architecture}}\\[3cm]
+    
+    \rule{\textwidth}{1pt}\\[2cm]
+    
+    {\large \textbf{Authors:}}\\[0.3cm]
+    {\normalsize Anass Ouzaouit}\\
+    {\normalsize Mohamed Kannoun}\\[1.5cm]
+    
+    {\large \textbf{Supervisors:}}\\[0.3cm]
+    {\normalsize Pr. M. Beni-Hssane}\\
+    {\normalsize Pr. M. Kasri}\\
+    {\normalsize Pr. Y. Lamriji}\\[2cm]
+    
+    \vfill
+    {\normalsize February 2026}
+\end{titlepage}
+
+\newpage
+
+% Abstract Page
+\begin{center}
+    \section*{Abstract}
+\end{center}
+
+\noindent
+SynthAug is a full-stack AI Software-as-a-Service platform designed to generate synthetic data in two modalities: (1) synthetic images using Projected GAN architecture running on GPU, and (2) synthetic numeric data using SDV-based tabular models (CTGAN or Gaussian Copula) running locally on CPU. The platform features a React/TypeScript frontend, Node.js/Express backend with MongoDB, a Python Flask GPU-accelerated engine on Google Colab for images (via Ngrok tunneling), and a Python Flask CPU-only engine for numeric datasets running locally on port 5001. This report provides comprehensive documentation of the project architecture, implementation details, the Projected GAN and SDV algorithms, and deployment considerations. The system enables users to train custom GAN models with minimal image data (50-100 images) or generate synthetic tabular rows from CSV files through an intuitive web interface with automatic CSV upload integration.
+
+\newpage
+
+% Table of Contents Page
+\tableofcontents
+\newpage
+
+\section{Introduction}
+
+\subsection{Project Overview}
+SynthAug is a comprehensive web-based platform that democratizes access to advanced AI image generation technology. Users can upload their own image datasets and train custom generative models without requiring any machine learning expertise. The platform handles the entire workflow from data preprocessing to model training and synthetic image generation.
+
+\subsection{Key Features}
+\begin{itemize}[noitemsep]
+    \item Secure user authentication with JWT tokens
+    \item Project management dashboard with type selection (Image vs Numeric)
+    \item Dataset upload: ZIP for images, CSV for numeric data
+    \item Automatic preprocessing and schema detection
+    \item Two training modes:
+    \begin{itemize}
+        \item Image: Draft (5-10 min) and Studio (45-60 min) presets
+        \item Numeric: CTGAN or Gaussian Copula model selection
+    \end{itemize}
+    \item Real-time progress monitoring with live logs
+    \item Synthetic data generation (1000+ images or 100k+ rows)
+    \item CSV schema preview with scrollable columns and sample rows
+    \item Activity tracking and notification system
+    \item Dual download options: generated-only or merged with originals
+\end{itemize}
+
+\subsection{Technology Stack}
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lll}
+\toprule
+\textbf{Layer} & \textbf{Technologies} & \textbf{Purpose} \\
+\midrule
+Frontend & React 18, TypeScript, Tailwind CSS & User interface \\
+Backend & Node.js, Express, MongoDB & API \& data persistence \\
+AI Engine (Images) & Python, Flask, PyTorch, Projected GAN & Training \& generation \\
+AI Engine (Tabular) & Python, Flask, SDV (CTGAN/Gaussian) & CPU-only tabular synthesis \\
+Infrastructure & Google Colab, Ngrok & GPU compute \& tunneling \\
+\bottomrule
+\end{tabular}
+\caption{Technology Stack Summary}
+\end{table}
+
+\section{System Architecture}
+
+\subsection{Four-Tier Architecture}
+
+The system follows a distributed four-tier architecture with dual AI engines:
+
+\begin{verbatim}
+┌──────────────────────────────────────────────────┐
+│  FRONTEND (React + TypeScript)                   │
+│  - Dashboard  - Studio  - Auth  - Settings       │
+│  - Project Type Selector (Image/Numeric)         │
+│  - CSV Schema Preview with Scroll Controls       │
+└──────────────┬───────────────────────────────────┘
+               │ HTTP/HTTPS (Axios + JWT)
+┌──────────────┴───────────────────────────────────┐
+│  BACKEND API (Node.js + Express)                 │
+│  - Authentication  - Projects  - Dual Proxy      │
+│  - MongoDB  - JWT  - Rate Limiting               │
+│  - Webhook Handler (200 auth for localhost)      │
+└────────┬─────────────────────────────┬───────────┘
+         │ Ngrok Tunnel               │ localhost:5001
+         │ (Images only)              │ (Numeric only)
+┌────────┴───────────────┐   ┌────────┴──────────────┐
+│ IMAGE ENGINE (GPU)     │   │ TABULAR ENGINE (CPU)  │
+│ - Python Flask         │   │ - Python Flask        │
+│ - Google Colab T4 GPU  │   │ - SDV Library         │
+│ - Projected GAN        │   │ - CTGAN Synthesizer   │
+│ - PyTorch/CUDA         │   │ - GaussianCopula      │
+│ - Ngrok Tunnel         │   │ - Pandas/NumPy        │
+│ - Image Preprocessing  │   │ - Local Workdir       │
+│ - ZIP packaging        │   │ - CSV I/O             │
+└────────────────────────┘   └───────────────────────┘
+\end{verbatim}
+
+\subsection{Data Flow}
+\paragraph{Image Project Flow:}
+\begin{enumerate}[noitemsep]
+    \item User creates Image project via React frontend
+    \item Uploads ZIP file through Studio interface
+    \item Backend proxies request to Colab GPU engine via Ngrok
+    \item Colab extracts, preprocesses, trains Projected GAN
+    \item Engine updates state, frontend polls every 10s for progress
+    \item On completion, webhook notifies backend (200 auth for localhost)
+    \item User downloads ZIP with generated images
+\end{enumerate}
+
+\paragraph{Numeric Project Flow:}
+\begin{enumerate}[noitemsep]
+    \item User creates Numeric project via React frontend
+    \item Selects CSV file (columns auto-detected for preview)
+    \item Clicks START TRAINING (auto-uploads CSV before training)
+    \item Backend proxies to local Flask engine (localhost:5001)
+    \item Engine trains CTGAN/Gaussian model on CPU
+    \item Frontend polls every 10s, engine updates state in memory
+    \item On completion, webhook notifies backend
+    \item User downloads CSV (generated-only or merged)
+\end{enumerate}
+
+\section{Frontend Implementation}
+
+\subsection{Component Architecture}
+The frontend uses React with TypeScript for type safety. Key components include:
+
+\begin{itemize}[noitemsep]
+    \item \textbf{Pages}: Dashboard, Studio, Auth, Settings
+    \item \textbf{Components}: Terminal, ProgressVisualization, ActivityFeed, Modals
+    \item \textbf{State Management}: Zustand stores for auth, projects, notifications
+    \item \textbf{Routing}: React Router with protected routes
+\end{itemize}
+
+\subsection{Authentication Flow}
+Users log in via JWT-based authentication. Tokens are stored in localStorage and included in API requests via Axios interceptors. Protected routes verify authentication status before rendering.
+
+\subsection{Real-time Progress Monitoring}
+The Studio page continuously polls the AI engine status endpoint every second, providing users with:
+\begin{itemize}[noitemsep]
+    \item Live progress bar showing completion percentage (0-100\%)
+    \item Status indicators (Idle, Training, Complete, Failed)
+    \item Real-time terminal showing training logs and iteration counts
+    \item Elapsed time tracking
+    \item Current phase display (Preprocessing, Training, Generating)
+\end{itemize}
+
+This gives users confidence that training is progressing and allows them to monitor for any issues.
+
+\section{Backend Implementation}
+
+\subsection{Express API Architecture}
+The backend provides RESTful API endpoints organized by domain:
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lp{8cm}}
+\toprule
+\textbf{Route} & \textbf{Purpose} \\
+\midrule
+/api/auth & User registration, login, token management \\
+/api/projects & CRUD operations for training projects \\
+/api/proxy/:projectId/* & Forward requests to AI engine with auth \\
+/api/notifications & User notification management \\
+/api/activity & Activity logging and retrieval \\
+\bottomrule
+\end{tabular}
+\caption{API Route Summary}
+\end{table}
+
+\subsection{Database Schema}
+MongoDB stores four main collections with detailed schemas:
+
+\paragraph{Users Collection} Stores:
+\begin{itemize}[noitemsep]
+    \item Credentials: username, email, bcrypt-hashed password
+    \item Profile: avatar URL, bio text
+    \item Statistics: total projects, images generated, processing time
+    \item Subscription: plan type (free/pro/enterprise), status, expiry date
+    \item Timestamps: account creation, last login
+\end{itemize}
+
+\paragraph{Projects Collection} Tracks:
+\begin{itemize}[noitemsep]
+    \item Basic info: project name, owner reference, timestamps
+    \item Status: idle, uploading, training, completed, or failed
+    \item Configuration: project type (image/tabular), preset choice (draft/studio), output count
+    \item Tabular settings: model choice (CTGAN or Gaussian Copula)
+    \item Metadata: file counts, sizes, processing time, upload/completion dates
+    \item Training logs: array of log messages (max 100) for debugging
+\end{itemize}
+
+\paragraph{Activities Collection} Logs every user action:
+\begin{itemize}[noitemsep]
+    \item Event types: project created/deleted, upload/training started/completed/failed, downloads
+    \item References: user ID, project ID, project name for quick lookups
+    \item Metadata: image counts, preset used, processing time
+    \item Timestamp for activity timeline visualization
+\end{itemize}
+
+\paragraph{Notifications Collection} Manages alerts:
+\begin{itemize}[noitemsep]
+    \item Message content and type (success/error/info)
+    \item Project references for context
+    \item Read/unread status for UI badges
+    \item Created timestamp for ordering
+\end{itemize}
+
+\subsection{Security Implementation}
+\begin{itemize}[noitemsep]
+    \item \textbf{Authentication}: JWT tokens with 360,000 second expiry
+    \item \textbf{Password Hashing}: bcryptjs with 10 salt rounds
+    \item \textbf{Rate Limiting}: 20 auth requests per 15 min, 100 API requests per 15 min
+    \item \textbf{CORS}: Whitelist frontend origin only
+    \item \textbf{Helmet.js}: Security HTTP headers (CSP, X-Frame-Options, etc.)
+    \item \textbf{Input Validation}: express-validator sanitizes all user input
+\end{itemize}
+
+\section{Local Tabular Engine}
+
+\subsection{Overview}
+The numeric data pipeline runs fully on the user's machine with no GPU requirements. A lightweight Flask service (app.py) listens on port 5001 and uses the SDV (Synthetic Data Vault) library to train either CTGAN (quality-first) or Gaussian Copula (speed-first) models on uploaded CSV files.
+
+\subsection{Architecture}
+
+\paragraph{Flask Endpoints:}
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{llp{5cm}}
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Function} \\
+\midrule
+POST & /upload & Receive CSV, save to workdir/\{projectId\}/input.csv \\
+POST & /train & Spawn background thread with model/count params \\
+GET & /status & Return STATE[projectId] with status/progress/log \\
+GET & /download & Send generated.csv or merged.csv as file \\
+\bottomrule
+\end{tabular}
+\caption{Tabular Engine API}
+\end{table}
+
+\paragraph{State Management:}
+The Flask app maintains an in-memory dictionary STATE tracking each project's training:
+\begin{lstlisting}[language=Python]
+STATE = {
+    "projectId123": {
+        "status": "training",  # idle/training/completed/failed
+        "progress": 45,        # 0-100 percentage
+        "log": "Training CTGAN model..."
+    }
+}
+\end{lstlisting}
+
+\subsection{Training Workflow}
+
+\paragraph{Step 1: CSV Upload (Auto-triggered)}
+\begin{itemize}[noitemsep]
+    \item Frontend calls START TRAINING
+    \item Frontend first auto-uploads CSV via FormData
+    \item Backend proxies to /upload endpoint
+    \item Flask saves to workdir/\{projectId\}/input.csv
+    \item Pandas validates CSV format and columns
+\end{itemize}
+
+\paragraph{Step 2: Training Request}
+\begin{itemize}[noitemsep]
+    \item Backend proxies POST /train with \{model, count, epochs\}
+    \item Flask spawns background daemon thread
+    \item Returns immediately with \{message: "Training started"\}
+    \item Frontend begins polling /status every 10 seconds
+\end{itemize}
+
+\paragraph{Step 3: Background Training}
+The run\_training\_background function executes:
+\begin{lstlisting}[language=Python]
+def run_training_background(project_id, count, model, epochs):
+    # Phase 1: Load CSV (10% progress)
+    df = pd.read_csv(input_path)
+    
+    # Phase 2: Detect metadata (35% progress)
+    metadata = SingleTableMetadata()
+    metadata.detect_from_dataframe(df)
+    
+    # Phase 3: Train model (80% progress)
+    if model == "gaussian":
+        synthesizer = GaussianCopulaSynthesizer(metadata)
+    else:
+        synthesizer = CTGANSynthesizer(metadata, epochs=epochs)
+    synthesizer.fit(df)
+    
+    # Phase 4: Sample rows (100% progress)
+    generated = synthesizer.sample(count)
+    generated.to_csv(generated_path, index=False)
+    
+    # Notify backend webhook
+    notify_backend(project_id, "completed", metadata)
+\end{lstlisting}
+
+\paragraph{Step 4: Webhook Notification}
+\begin{itemize}[noitemsep]
+    \item Engine POSTs to /api/proxy/\{projectId\}/webhook
+    \item Backend verifies localhost IP (127.0.0.1, ::1, 192.168.x.x, 10.x, 172.16-31.x)
+    \item Updates MongoDB project status to "completed"
+    \item Creates notification for user
+    \item Logs activity event
+\end{itemize}
+
+\subsection{Model Comparison}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lp{5cm}p{5cm}}
+\toprule
+\textbf{Model} & \textbf{Pros} & \textbf{Cons} \\
+\midrule
+CTGAN & High quality, handles complex distributions, neural network-based & Slower training (epochs required), more memory \\
+Gaussian Copula & Fast training, low memory, statistical approach & Lower quality for complex data, assumes marginal distributions \\
+\bottomrule
+\end{tabular}
+\caption{Tabular Model Trade-offs}
+\end{table}
+
+\subsection{Frontend Integration}
+
+\paragraph{Schema Preview:}
+\begin{itemize}[noitemsep]
+    \item User selects CSV file via file input
+    \item Frontend reads first 20KB with FileReader API
+    \item Parses columns and first 3-5 sample rows
+    \item Displays in bounded table with scroll buttons (up/down/left/right)
+    \item Sticky header for column names
+    \item Horizontal scroll for wide tables
+\end{itemize}
+
+\paragraph{Auto-Upload Integration:}
+\begin{itemize}[noitemsep]
+    \item User clicks START TRAINING
+    \item Frontend checks if files.length > 0
+    \item Creates FormData with CSV file
+    \item POSTs to /api/proxy/\{projectId\}/upload first
+    \item On success, proceeds with /train request
+    \item Logs each step in Terminal component
+\end{itemize}
+
+\section{Projected GAN: Deep Dive}
+
+\subsection{Introduction to GANs}
+
+Generative Adversarial Networks (GANs) consist of two neural networks that compete against each other:
+
+\begin{description}
+    \item[Generator (G):] Takes random noise as input and creates synthetic images that look real
+    \item[Discriminator (D):] Tries to distinguish between real images from the dataset and fake images from the generator
+\end{description}
+
+The generator improves by learning to fool the discriminator, while the discriminator improves by getting better at spotting fakes. This adversarial process continues until the generator produces highly realistic images.
+
+\subsection{Standard GAN Challenges}
+
+Traditional GANs face significant issues:
+\begin{itemize}[noitemsep]
+    \item \textbf{Mode Collapse}: Generator produces limited variety
+    \item \textbf{Training Instability}: Oscillating losses, divergence
+    \item \textbf{Data Inefficiency}: Requires thousands of training images
+    \item \textbf{Computational Cost}: Large models need extended GPU time
+\end{itemize}
+
+\subsection{Projected GAN Innovation}
+
+\textbf{Key Insight}: Replace the complex discriminator with a simple linear projection on frozen pre-trained features.
+
+\subsubsection{Core Architecture}
+
+Instead of training a full discriminator network, Projected GAN uses:
+\begin{itemize}[noitemsep]
+    \item A \textbf{frozen pre-trained feature extractor} (like ResNet50) that was trained on millions of ImageNet images
+    \item A simple \textbf{linear projection layer} on top that learns to classify real vs fake
+    \item Only this tiny projection layer is trained - the feature extractor stays frozen
+\end{itemize}
+
+This is like using a pre-trained "visual understanding" network and just teaching it a simple yes/no decision on top, rather than training everything from scratch.
+
+\subsubsection{Why This Works}
+
+\begin{enumerate}[noitemsep]
+    \item \textbf{Transfer Learning}: Pre-trained features capture general visual concepts
+    \item \textbf{Parameter Efficiency}: Only $w$ is trained, 99\% parameter reduction
+    \item \textbf{Training Stability}: Linear projection has simpler loss landscape
+    \item \textbf{Computational Speed}: Frozen features computed once per batch
+\end{enumerate}
+
+\subsubsection{How Training Works}
+
+The training process alternates between two steps:
+\begin{enumerate}[noitemsep]
+    \item \textbf{Train Projection Layer}: Show it real and fake images, adjust weights to classify them correctly
+    \item \textbf{Train Generator}: Generate images, see if they fool the projection layer, adjust to make better fakes
+\end{enumerate}
+
+The frozen feature extractor provides consistent, high-quality image features, making training much more stable.
+
+\subsection{Generator Architecture}
+
+The generator remains complex to ensure expressive image synthesis:
+\begin{itemize}[noitemsep]
+    \item Input: 512-dimensional latent vector $z$
+    \item Architecture: StyleGAN-inspired with Adaptive Instance Normalization (AdaIN)
+    \item Features: Residual connections, spectral normalization
+    \item Output: 256×256 RGB images
+\end{itemize}
+
+\subsection{Training Algorithm}
+
+\begin{lstlisting}[language=Python, caption=Projected GAN Training Loop]
+for iteration in range(num_iterations):
+    # Discriminator step
+    real_images = sample_batch_from_dataset()
+    noise = sample_noise()
+    fake_images = generator(noise)
+    
+    real_features = frozen_extractor(real_images)
+    fake_features = frozen_extractor(fake_images)
+    
+    D_loss = hinge_loss(real_features, fake_features, w)
+    w = optimizer_D.step(D_loss)  # Update only w
+    
+    # Generator step
+    noise = sample_noise()
+    fake_images = generator(noise)
+    fake_features = frozen_extractor(fake_images)
+    
+    G_loss = generator_loss(fake_features, w)
+    generator = optimizer_G.step(G_loss)  # Update G
+\end{lstlisting}
+
+\subsection{Advantages Over Standard GANs}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lp{7cm}}
+\toprule
+\textbf{Advantage} & \textbf{Impact} \\
+\midrule
+Data Efficiency & Works with 50-100 images vs 1000s \\
+Speed & 10× faster training than StyleGAN \\
+Stability & Fewer training failures and divergences \\
+Quality & Comparable image quality to large GANs \\
+Simplicity & Easier to tune and debug \\
+\bottomrule
+\end{tabular}
+\caption{Projected GAN Benefits}
+\end{table}
+
+\subsection{Implementation in SynthAug}
+
+We use the official Projected GAN implementation:
+
+\begin{lstlisting}[language=bash, caption=Training Command]
+python train.py \
+    --outdir=/content/results \
+    --data=/content/dataset.zip \
+    --gpus=1 \
+    --cfg=fastgan \
+    --batch=16 \
+    --kimg=50  # Draft: 50, Studio: 600
+\end{lstlisting}
+
+\section{AI Engine Implementation}
+
+\subsection{Google Colab Backend}
+
+The AI engine runs on Google Colab's free GPU tier (Tesla T4, 15GB VRAM). This provides:
+\begin{itemize}[noitemsep]
+    \item Free GPU access for training
+    \item Pre-installed PyTorch and CUDA
+    \item Jupyter notebook interface
+\end{itemize}
+
+\textbf{Critical Dependency}: We pin \texttt{timm==0.4.12} to avoid compatibility issues with newer versions.
+
+\subsection{Flask API Endpoints}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{llp{5.5cm}}
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Function} \\
+\midrule
+POST & /upload & Receive ZIP file, extract images, validate format \\
+POST & /train & Spawn background thread, return immediately \\
+GET & /status & Return current state \{status, progress, log\} \\
+GET & /download & Package results as ZIP (generated or merged) \\
+\bottomrule
+\end{tabular}
+\caption{AI Engine API}
+\end{table}
+
+\subsubsection{Global Training State}
+
+The Flask server maintains a shared dictionary that tracks training progress:
+\begin{lstlisting}[language=Python]
+TRAINING_STATE = {
+    "status": "idle",  # idle/training/complete/error
+    "progress": 0,     # 0-100 percentage
+    "log": "..."       # Current operation message
+}
+\end{lstlisting}
+
+This state is updated by the background training thread and polled by the frontend for real-time updates.
+
+\subsection{Five-Phase Training Workflow}
+
+\paragraph{Phase 1: Data Validation} Extract uploaded ZIP and locate image files.
+
+\paragraph{Phase 2: Preprocessing} Resize all images to 256×256 using center crop:
+\begin{lstlisting}[language=Python]
+from PIL import Image
+import torchvision.transforms as transforms
+
+resize = transforms.Compose([
+    transforms.Resize(256),
+    transforms.CenterCrop(256)
+])
+
+for img_path in images:
+    img = Image.open(img_path).convert('RGB')
+    resize(img).save(output_path)
+\end{lstlisting}
+
+\paragraph{Phase 3: Dataset Conversion} Convert to optimized binary format for fast I/O during training.
+
+\paragraph{Phase 4: Model Training} The actual GAN training begins:
+\begin{itemize}[noitemsep]
+    \item Draft mode: 50 kimg (thousand images processed)
+    \item Studio mode: 600 kimg for higher quality
+    \item Training output is streamed from subprocess
+    \item Progress parsed from "tick" messages in logs
+    \item Model checkpoints saved periodically
+    \item Can take anywhere from 30 minutes to several hours depending on dataset size and GPU availability
+\end{itemize}
+
+The actual training time varies significantly based on:
+\begin{itemize}[noitemsep]
+    \item Google Colab GPU availability (free tier can be slow)
+    \item Dataset complexity and number of images
+    \item Time of day (Colab is slower during peak hours)
+    \item Whether Colab throttles your session
+\end{itemize}
+
+\paragraph{Phase 5: Image Generation} Generate synthetic images from the trained model:
+\begin{lstlisting}[language=bash]
+python gen_images.py \
+    --network=trained_model.pkl \
+    --seeds=0-999 \
+    --outdir=/content/generated
+\end{lstlisting}
+
+\subsection{Ngrok Tunneling}
+
+Ngrok creates a public HTTPS tunnel to the local Flask server:
+\begin{lstlisting}[language=Python]
+from pyngrok import ngrok
+
+ngrok.set_auth_token(AUTH_TOKEN)
+public_url = ngrok.connect(5000).public_url
+app.run(port=5000)
+\end{lstlisting}
+
+This allows the backend API to communicate with Colab without complex networking setup.
+
+\section{Complete User Workflows}
+
+\subsection{Image Project Training Workflow}
+
+\paragraph{Step 1: Project Setup (Image)}
+\begin{itemize}[noitemsep]
+    \item User logs into Dashboard
+    \item Clicks "New Project" button
+    \item Enters descriptive project name
+    \item Project is saved to MongoDB with "idle" status
+    \item Activity log records project creation
+\end{itemize}
+
+\paragraph{Step 2: Dataset Preparation}
+\begin{itemize}[noitemsep]
+    \item User prepares images in a ZIP file (50-100+ images recommended)
+    \item Images can be JPG, PNG, or JPEG format
+    \item All images will be resized to 256×256 automatically
+    \item Mix of variety helps model learn better
+\end{itemize}
+
+\paragraph{Step 3: Upload and Configuration}
+\begin{itemize}[noitemsep]
+    \item Navigate to Studio page for the project
+    \item Click "Upload Dataset" and select ZIP file
+    \item Backend forwards file to AI engine
+    \item Flask extracts and validates images
+    \item Choose training preset:
+    \begin{itemize}
+        \item Draft: Faster, good for testing (50 kimg)
+        \item Studio: Higher quality, takes longer (600 kimg)
+    \end{itemize}
+    \item Set number of synthetic images to generate (default 500)
+\end{itemize}
+
+\paragraph{Step 4: Training Execution}
+\begin{itemize}[noitemsep]
+    \item Click "Start Training" button
+    \item Backend sends request to AI engine
+    \item Flask spawns background thread (non-blocking)
+    \item Frontend begins polling /status every second
+    \item Progress bar animates from 0-100\%
+    \item Terminal shows live log messages
+    \item Training goes through 5 phases (validation, preprocessing, conversion, training, generation)
+    \item User can leave page and return - training continues
+    \item Notification sent on completion or error
+\end{itemize}
+
+\paragraph{Step 5: Results Download}
+\begin{itemize}[noitemsep]
+    \item Status changes to "Complete" when finished
+    \item Click "Download Results" button
+    \item Choose download type:
+    \begin{itemize}
+        \item Generated Only: Just the synthetic images
+        \item Merged: Original dataset + synthetic images combined
+    \end{itemize}
+    \item Flask packages results into ZIP file
+    \item Browser downloads ZIP with all images
+    \item Activity log records download event
+\end{itemize}
+
+\subsection{Numeric Project Training Workflow}
+
+\paragraph{Step 1: Project Setup (Numeric)}
+\begin{itemize}[noitemsep]
+    \item User logs into Dashboard
+    \item Clicks "New Project" button
+    \item Enters project name
+    \item Selects "Numeric Data" type
+    \item Project saved with dataType="tabular"
+\end{itemize}
+
+\paragraph{Step 2: CSV Selection}
+\begin{itemize}[noitemsep]
+    \item User navigates to Studio page
+    \item Clicks file input (accepts .csv)
+    \item Frontend parses first 20KB for preview
+    \item Columns displayed as horizontal tags
+    \item Sample rows shown in scrollable table
+    \item Column count badge shows N columns detected
+\end{itemize}
+
+\paragraph{Step 3: Model Configuration}
+\begin{itemize}[noitemsep]
+    \item Choose synthesis model:
+    \begin{itemize}
+        \item CTGAN: Neural network, higher quality
+        \item Gaussian Copula: Statistical, faster
+    \end{itemize}
+    \item Set output row count (10-100,000)
+    \item Optional: Adjust epochs for CTGAN (default 100)
+\end{itemize}
+
+\paragraph{Step 4: Training Execution}
+\begin{itemize}[noitemsep]
+    \item Click "START TRAINING"
+    \item Frontend auto-uploads CSV first (FormData POST)
+    \item Backend proxies to localhost:5001/upload
+    \item CSV saved to workdir/\{projectId\}/input.csv
+    \item Backend proxies /train request
+    \item Flask spawns background thread
+    \item Frontend polls /status every 10 seconds
+    \item Progress updates: 10\% → 35\% → 80\% → 100\%
+    \item Terminal shows live phase logs
+    \item Webhook notifies backend on completion
+\end{itemize}
+
+\paragraph{Step 5: CSV Download}
+\begin{itemize}[noitemsep]
+    \item Status changes to "completed"
+    \item Click download button:
+    \begin{itemize}
+        \item "Generated CSV": Synthetic rows only
+        \item "Original + Generated": Merged CSV
+    \end{itemize}
+    \item Frontend uses authenticated Axios request (responseType: blob)
+    \item Backend proxies to /download?type=generated|merged
+    \item Flask merges CSVs if needed
+    \item Browser downloads CSV file
+    \item Activity logged
+\end{itemize}
+
+\subsection{Real-time Communication}
+
+\begin{verbatim}
+Frontend --> Backend --> AI Engine: POST /train
+AI Engine: Starts background thread
+Frontend <-- Backend <-- AI Engine: {"status": "training"}
+
+[Every 1 second while training:]
+Frontend --> Backend --> AI Engine: GET /status
+AI Engine: Returns current progress
+Frontend <-- Backend <-- AI Engine: 
+    {"status": "training", "progress": 45, "log": "..."}
+
+[After completion:]
+Frontend: Detects status="complete"
+User: Clicks Download
+Frontend --> Backend --> AI Engine: GET /download
+Frontend: Receives ZIP file with images
+\end{verbatim}
+
+\section{Deployment}
+
+\subsection{Development Setup}
+
+Four processes run simultaneously:
+\begin{itemize}[noitemsep]
+    \item \textbf{Backend}: \texttt{cd server \&\& npm start} (Port 5000)
+    \item \textbf{Frontend}: \texttt{cd client \&\& npm run dev} (Port 5173)
+    \item \textbf{Image Engine}: Google Colab notebook with Ngrok tunnel (GPU)
+    \item \textbf{Tabular Engine}: \texttt{cd tabular\_engine \&\& python app.py} (Port 5001, CPU)
+\end{itemize}
+
+\textbf{Note:} Image and Tabular engines run independently. Users only need to start the engine matching their project type.
+
+\subsection{Production Architecture}
+
+Recommended deployment:
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{ll}
+\toprule
+\textbf{Component} & \textbf{Platform} \\
+\midrule
+Frontend & Vercel / Netlify \\
+Backend & Railway / Render \\
+Database & MongoDB Atlas (M2+) \\
+AI Engine & AWS EC2 with GPU \\
+Storage & AWS S3 \\
+Queue & Redis + Bull \\
+\bottomrule
+\end{tabular}
+\caption{Production Stack}
+\end{table}
+
+\subsection{Environment Configuration}
+
+\textbf{Backend .env}:
+\begin{lstlisting}[language=bash]
+MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/db
+JWT_SECRET=your-secret-key-32-chars-minimum
+AI_ENGINE_URL=https://your-ai-server.com
+FRONTEND_URL=https://yourdomain.com
+NODE_ENV=production
+PORT=5000
+\end{lstlisting}
+
+\section{Training Considerations}
+
+\subsection{Realistic Training Times}
+
+In development using Google Colab free tier, actual training times are much longer than theoretical benchmarks:
+
+\paragraph{Draft Mode (50 kimg)}
+\begin{itemize}[noitemsep]
+    \item Expected: 30 minutes to 1 hour for small datasets (50-100 images)
+    \item Can take longer if Colab is busy or GPU is throttled
+    \item Suitable for testing and quick iterations
+\end{itemize}
+
+\paragraph{Studio Mode (600 kimg)}
+\begin{itemize}[noitemsep]
+    \item Expected: 1-3 hours depending on conditions
+    \item May take even longer during peak usage times
+    \item Better quality results but requires patience
+    \item Risk of Colab session timeout (12-hour limit)
+\end{itemize}
+
+\subsection{Factors Affecting Training Speed}
+
+\begin{itemize}[noitemsep]
+    \item \textbf{GPU Availability}: Free Colab tier doesn't guarantee consistent GPU access
+    \item \textbf{Dataset Size}: More images = longer preprocessing and training
+    \item \textbf{Image Complexity}: Detailed or high-variance datasets train slower
+    \item \textbf{Time of Day}: Colab performance varies with server load
+    \item \textbf{Session Throttling}: Colab may slow down after extended use
+\end{itemize}
+
+\subsection{Development vs Production}
+
+This is a development setup optimized for learning and prototyping:
+\begin{itemize}[noitemsep]
+    \item Uses free Google Colab GPU (no cost but slower)
+    \item Ngrok URLs expire and need updating
+    \item Sessions disconnect after inactivity
+    \item Not suitable for production workloads
+\end{itemize}
+
+For production, you would need:
+\begin{itemize}[noitemsep]
+    \item Dedicated GPU server (AWS EC2 p3 instances, Paperspace, Lambda Labs)
+    \item Stable domain instead of Ngrok
+    \item Job queue system for handling multiple users
+    \item Automated monitoring and restart capabilities
+\end{itemize}
+
+\section{Challenges and Solutions}
+
+\subsection{Technical Challenges}
+
+\paragraph{Challenge 1: Timm Version Compatibility}
+Later versions of timm library broke Projected GAN. \textbf{Solution}: Pin to version 0.4.12.
+
+\paragraph{Challenge 2: Real-time Progress}
+Needed live training updates. \textbf{Solution}: Flask streams subprocess output, parses progress, frontend polls every second.
+
+\paragraph{Challenge 3: Colab Session Expiry}
+Free tier disconnects after 12 hours or with inactivity. \textbf{Solution}: For development, restart notebook as needed. For production, use persistent GPU server (AWS EC2, Paperspace, Lambda Labs).
+
+\paragraph{Challenge 4: Ngrok URL Changes}
+Free tier URLs expire after 2 hours of inactivity. \textbf{Solution}: Restart Colab cell 5 to get new URL, update backend .env, restart backend. For production, deploy Flask with stable domain.
+
+\paragraph{Challenge 5: Slow Training Times}
+Free Colab can be very slow, especially during peak hours. \textbf{Reality}: Training 100 images might take 1+ hours in development. Users need to be patient and understand this is development-grade infrastructure, not production.
+
+\paragraph{Challenge 6: Dataset Quality}
+Poor quality or too few images result in bad outputs. \textbf{Solution}: Provide user guidance on minimum 50 images, consistent style, good resolution. Add dataset validation warnings.
+
+\subsection{Future Enhancements}
+
+\begin{enumerate}[noitemsep]
+    \item Migrate to dedicated GPU infrastructure
+    \item Implement job queue for multiple simultaneous trainings
+    \item Add WebSocket for real-time updates (no polling)
+    \item Support additional GAN architectures (StyleGAN2, Diffusion models)
+    \item Add cloud storage integration (S3)
+    \item Build admin dashboard with analytics
+    \item Implement payment system for subscriptions
+\end{enumerate}
+
+\section{Conclusion}
+
+SynthAug successfully demonstrates a production-ready AI SaaS platform combining modern web technologies with state-of-the-art machine learning. The use of Projected GAN enables efficient training with minimal data, making synthetic image generation accessible to non-technical users.
+
+\subsection{Key Achievements}
+\begin{itemize}[noitemsep]
+    \item Complete full-stack implementation with React, Node.js, MongoDB, and PyTorch
+    \item Robust security with JWT authentication, rate limiting, and input validation
+    \item Real-time progress monitoring for enhanced user experience
+    \item Integration of cutting-edge Projected GAN for 10× faster training
+    \item Comprehensive project management and activity tracking
+\end{itemize}
+
+\subsection{Technical Contributions}
+\begin{itemize}[noitemsep]
+    \item Demonstrated effective use of Projected GAN in SaaS context
+    \item Implemented efficient proxy architecture for GPU compute
+    \item Created intuitive interface for complex ML workflows
+    \item Established scalable three-tier architecture
+\end{itemize}
+
+The platform provides a strong foundation for future development, with clear paths for scaling, additional features, and production deployment.
+
+\section*{References}
+
+\begin{enumerate}[noitemsep]
+    \item Goodfellow, I., et al. (2014). \textit{Generative Adversarial Networks}. arXiv:1406.2661
+    
+    \item Sauer, A., Schwarz, K., \& Geiger, A. (2021). \textit{Projected GANs Converge Faster}. arXiv:2111.01007
+    
+    \item Karras, T., et al. (2019). \textit{Analyzing and Improving the Image Quality of StyleGAN}. arXiv:1912.06271
+    
+    \item Projected GAN Official Repository: \url{https://github.com/autonomousvision/projected\_gan}
+    
+    \item React Documentation: \url{https://react.dev/}
+    
+    \item MongoDB Documentation: \url{https://docs.mongodb.com/}
+\end{enumerate}
+
+\appendix
+\section{Installation Guide}
+
+\subsection{Prerequisites}
+\begin{itemize}[noitemsep]
+    \item Node.js 18+
+    \item MongoDB Atlas account
+    \item Google Colab account
+    \item Ngrok account
+\end{itemize}
+
+\subsection{Quick Start}
+\begin{enumerate}[noitemsep]
+    \item Clone repository
+    \item Install dependencies: \texttt{npm install} in \texttt{client/} and \texttt{server/}
+    \item Configure \texttt{server/.env} with MongoDB URI, JWT secret, AI\_ENGINE\_URL
+    \item Start backend: \texttt{cd server \&\& npm start}
+    \item Start frontend: \texttt{cd client \&\& npm run dev}
+    \item Run Colab notebook cells 1-5
+    \item Copy Ngrok URL to backend .env and restart
+\end{enumerate}
+
+\section{API Reference}
+
+\subsection{Authentication Endpoints}
+\begin{itemize}[noitemsep]
+    \item \texttt{POST /api/auth/register} - Create new user
+    \item \texttt{POST /api/auth/login} - Authenticate and get token
+\end{itemize}
+
+\subsection{Project Endpoints}
+\begin{itemize}[noitemsep]
+    \item \texttt{GET /api/projects} - List all user projects
+    \item \texttt{POST /api/projects} - Create new project
+    \item \texttt{GET /api/projects/:id} - Get project details
+    \item \texttt{PUT /api/projects/:id} - Update project
+    \item \texttt{DELETE /api/projects/:id} - Delete project
+\end{itemize}
+
+\subsection{Training Endpoints}
+\begin{itemize}[noitemsep]
+    \item \texttt{POST /api/proxy/:projectId/upload} - Upload dataset
+    \item \texttt{POST /api/proxy/:projectId/train} - Start training
+    \item \texttt{GET /api/proxy/:projectId/status} - Get training status
+    \item \texttt{GET /api/proxy/:projectId/download} - Download results
+\end{itemize}
+
+\end{document}

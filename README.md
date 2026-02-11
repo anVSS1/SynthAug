@@ -11,6 +11,7 @@ This repository contains the complete source code for SynthAug, a premium AI Saa
 - **User Authentication** - Secure JWT-based authentication system
 - **Project Management** - Create and manage multiple AI projects
 - **AI-Powered Generation** - Synthetic data generation using Projected GANs
+- **Tabular Augmentation** - Local CPU generation for numeric datasets (CTGAN or Gaussian Copula)
 - **Real-time Progress** - Live updates on training progress
 - **Modern UI** - Beautiful, responsive interface built with React & Tailwind CSS
 - **Notifications** - Stay informed about project status
@@ -46,6 +47,7 @@ This repository contains the complete source code for SynthAug, a premium AI Saa
 - **Ngrok** - Tunneling service
 - **PyTorch** - Deep learning framework
 - **Projected GAN** - GAN architecture
+- **SDV (CTGAN/Gaussian Copula)** - Local CPU engine for numeric data
 
 ## 📋 Prerequisites
 
@@ -59,15 +61,45 @@ Before you begin, ensure you have:
 
 ---
 
+## 🚀 Quick Start Summary
+
+**To run the complete platform, you need:**
+
+1. **Backend** (Always required):
+
+   ```bash
+   cd server && npm install && npm start
+   ```
+
+2. **Frontend** (Always required):
+
+   ```bash
+   cd client && npm install && npm run dev
+   ```
+
+3. **For Image Projects** (Optional - only if working with images):
+   - Run Google Colab notebook `colab_backend.ipynb`
+   - Get Ngrok URL and update `server/.env`
+
+4. **For Numeric Projects** (Optional - only if working with CSV):
+   ```bash
+   cd tabular_engine && pip install -r requirements.txt && python app.py
+   ```
+
+**Access**: Open browser to `http://localhost:5173`
+
+---
+
 ## 🚀 Complete Setup Guide - Start to Finish
 
 > 📚 **Quick Reference:** See [STARTUP_CHECKLIST.md](STARTUP_CHECKLIST.md) for a detailed step-by-step checklist
 
-The application consists of **three components** that must run simultaneously:
+The application consists of **four components** that must run simultaneously:
 
-1. **AI Engine** (Google Colab + Ngrok)
-2. **Backend Server** (Node.js + Express + MongoDB)
-3. **Frontend Client** (React + Vite)
+1. **Backend Server** (Node.js + Express + MongoDB)
+2. **Frontend Client** (React + Vite)
+3. **AI Engine** (Google Colab + Ngrok) - for image projects only
+4. **Tabular Engine** (Python Flask + SDV) - for numeric projects only
 
 Follow these steps in order:
 
@@ -136,12 +168,21 @@ cd "SaaS GANs"
    This diagnostic script will check if your `.env` file is properly configured.
 
 4. **Edit the `.env` file** (use any text editor):
+
    ```env
    PORT=5000
    MONGO_URI=mongodb+srv://your-username:your-password@cluster.xxxxx.mongodb.net/synthaug?retryWrites=true&w=majority
    JWT_SECRET=your-super-secret-jwt-key-here-make-it-long-and-random
    AI_ENGINE_URL=https://placeholder-will-update-after-step5.ngrok-free.app
+   TABULAR_ENGINE_URL=http://localhost:5001
    ```
+
+   **Configuration Details:**
+   - `MONGO_URI`: Paste the MongoDB connection string from Step 2
+   - `JWT_SECRET`: Any long random string (e.g., `openssl rand -base64 32`)
+   - `AI_ENGINE_URL`: Leave as placeholder (will update after Step 5)
+   - `TABULAR_ENGINE_URL`: Leave as-is for local tabular engine
+
 5. **Verify configuration again:**
 
    ```bash
@@ -175,7 +216,7 @@ Server running on port 5000
 
 ---
 
-### STEP 5: Set Up and Start the AI Engine (Google Colab)
+### STEP 5: Set Up and Start the AI Engine (Google Colab - Images)
 
 1. **Open Google Colab:**
    - Go to [Google Colab](https://colab.research.google.com/)
@@ -219,6 +260,55 @@ Server running on port 5000
 
 ---
 
+### STEP 5B: Set Up Local Tabular Engine (For Numeric Data)
+
+**Purpose:** This engine generates synthetic numeric data (CSV) using CTGAN or Gaussian Copula models. It runs entirely on your CPU without requiring Colab or GPU.
+
+1. **Navigate to tabular engine directory:**
+
+   ```bash
+   cd tabular_engine
+   ```
+
+2. **Install Python dependencies:**
+
+   ```bash
+   pip install flask flask-cors pandas numpy sdv requests
+   ```
+
+   Or if you have a requirements file:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Start the tabular engine:**
+
+   ```bash
+   python app.py
+   ```
+
+   You should see:
+
+   ```
+   * Running on http://127.0.0.1:5001
+   * Running on http://192.168.x.x:5001
+   ```
+
+   ✅ **Keep this terminal running**
+
+4. **Verify backend configuration:**
+
+   Your backend `.env` should already have:
+
+   ```env
+   TABULAR_ENGINE_URL=http://localhost:5001
+   ```
+
+> **Note:** The numeric project type automatically uses this local engine. No Ngrok or GPU required!
+
+---
+
 ### STEP 6: Configure and Start the Frontend
 
 1. **Open a new terminal** and navigate to the client directory:
@@ -252,7 +342,45 @@ Server running on port 5000
 
 ---
 
-### STEP 7: Access the Application
+### STEP 7: Verify Everything is Running
+
+Before using the application, make sure all required services are running:
+
+#### Backend (Required):
+
+```bash
+# Terminal 1
+cd server
+npm start
+# Should show: "MongoDB Connected..." and "Server running on port 5000"
+```
+
+#### Frontend (Required):
+
+```bash
+# Terminal 2
+cd client
+npm run dev
+# Should show: "Local: http://localhost:5173/"
+```
+
+#### Image Engine (Optional - only for image projects):
+
+- Google Colab notebook running (last cell showing Ngrok URL)
+- Ngrok URL copied to `server/.env`
+
+#### Tabular Engine (Optional - only for numeric projects):
+
+```bash
+# Terminal 3
+cd tabular_engine
+python app.py
+# Should show: "Running on http://127.0.0.1:5001"
+```
+
+---
+
+### STEP 8: Access the Application
 
 1. **Open your web browser** and go to: `http://localhost:5173`
 
@@ -269,24 +397,77 @@ Server running on port 5000
 
 ## 🎨 Using SynthAug
 
+### Understanding Project Types
+
+SynthAug supports two types of synthetic data generation:
+
+#### Image Projects 🖼️
+
+- **Input**: ZIP file with images (JPG, PNG, JPEG)
+- **Engine**: Google Colab GPU with Projected GAN
+- **Training Time**: 5-60+ minutes depending on preset
+- **Output**: ZIP with generated images (50-1000+)
+- **Requirements**: Colab notebook running + Ngrok URL configured
+- **Use Cases**: Image augmentation, style transfer, dataset expansion
+
+#### Numeric Projects 📊
+
+- **Input**: CSV file with numeric/categorical data
+- **Engine**: Local Python Flask with SDV (CTGAN/Gaussian Copula)
+- **Training Time**: 1-5 minutes (CPU-only)
+- **Output**: CSV with synthetic rows (10-100,000+)
+- **Requirements**: Python Flask app running on localhost:5001
+- **Use Cases**: Tabular data augmentation, privacy-preserving datasets, ML training data
+
+---
+
 ### Creating Your First Project
 
+#### For Image Projects:
+
 1. **Click "New Project"** on the dashboard
-2. **Enter a project name** (e.g., "My First Dataset")
-3. **Upload your dataset** as a ZIP file containing images
+2. **Enter a project name** (e.g., "My Image Dataset")
+3. **Select "Image Data"** as the project type
 4. **Click "Create Project"**
-5. Navigate to your project to start training
+5. Navigate to your project to upload images and start training
+
+#### For Numeric Projects:
+
+1. **Click "New Project"** on the dashboard
+2. **Enter a project name** (e.g., "My Numeric Dataset")
+3. **Select "Numeric Data"** as the project type
+4. **Click "Create Project"**
+5. Navigate to your project to upload CSV and start training
 
 ### Training the AI Model
 
+#### Image Projects:
+
 1. **Open your project** from the dashboard
-2. **Click "Upload Dataset"** and select your ZIP file
-3. **Choose a training preset:**
+2. **Select your ZIP file** containing images
+3. **Click "Upload File"** to upload the dataset
+4. **Choose a training preset:**
    - **Draft Mode** - Fast training (50 iterations, ~5-10 minutes)
-   - **Production Mode** - High quality (600 iterations, ~45-60 minutes)
-4. **Click "Start Training"**
-5. **Monitor progress** in real-time
-6. **Download results** when complete
+   - **Studio Mode** - High quality (600 iterations, ~45-60 minutes)
+5. **Set the number of images** to generate (50-1000)
+6. **Click "START TRAINING"**
+7. **Monitor progress** in real-time
+8. **Download results** when complete (ZIP file with generated images)
+
+#### Numeric Projects:
+
+1. **Open your project** from the dashboard
+2. **Select your CSV file** containing numeric data
+3. **Columns are automatically detected** and shown in the schema preview
+4. **Choose a synthesis model:**
+   - **CTGAN** - Neural network-based synthesis (more accurate, slower)
+   - **Gaussian Copula** - Statistical synthesis (faster, good for smaller datasets)
+5. **Set the number of rows** to generate (10-100,000)
+6. **Click "START TRAINING"** (CSV auto-uploads and training starts)
+7. **Monitor progress** in real-time
+8. **Download results** when complete:
+   - **Generated Only** - CSV with synthetic rows only
+   - **Original + Generated** - Merged CSV with both original and synthetic data
 
 ---
 
@@ -297,39 +478,61 @@ SaaS GANs/
 ├── client/                    # Frontend application
 │   ├── src/
 │   │   ├── components/       # Reusable UI components
+│   │   │   ├── ActivityFeed.tsx
+│   │   │   ├── DeleteConfirmModal.tsx
+│   │   │   ├── NewProjectModal.tsx
+│   │   │   ├── ProgressVisualization.tsx
+│   │   │   └── Terminal.tsx
 │   │   ├── layouts/          # Page layouts
+│   │   │   └── MainLayout.tsx
 │   │   ├── pages/            # Route pages
 │   │   │   ├── Auth.tsx      # Login/Register
 │   │   │   ├── Dashboard.tsx # Main dashboard
-│   │   │   ├── Studio.tsx    # Project workspace
-│   │   │   └── Settings.tsx  # User settings
+│   │   │   ├── Studio.tsx    # Project workspace (Image/Numeric)
+│   │   │   ├── Settings.tsx  # User settings
+│   │   │   ├── Upload.tsx    # Upload interface
+│   │   │   └── Legal.tsx     # Terms/Privacy
 │   │   ├── services/         # API integration
+│   │   │   └── api.ts        # Axios config + interceptors
 │   │   ├── store/            # State management (Zustand)
+│   │   │   ├── useAuthStore.ts
+│   │   │   ├── useProjectStore.ts
+│   │   │   └── useNotificationStore.ts
 │   │   ├── App.tsx           # Main app component
 │   │   └── main.tsx          # Entry point
 │   ├── package.json
-│   └── vite.config.ts        # Vite configuration
+│   ├── vite.config.ts        # Vite configuration
+│   └── tailwind.config.js    # Tailwind CSS config
 │
 ├── server/                    # Backend application
 │   ├── models/               # Database models
 │   │   ├── User.js          # User authentication
-│   │   ├── Project.js       # Project data
+│   │   ├── Project.js       # Project data (image/tabular)
 │   │   ├── Activity.js      # Activity logs
 │   │   └── Notification.js  # Notifications
 │   ├── routes/               # API endpoints
 │   │   ├── auth.js          # Authentication routes
 │   │   ├── projects.js      # Project CRUD
-│   │   ├── proxy.js         # AI engine proxy
-│   │   └── notifications.js # Notification routes
+│   │   ├── proxy.js         # Dual AI engine proxy
+│   │   ├── notifications.js # Notification routes
+│   │   ├── activity.js      # Activity routes
+│   │   └── user.js          # User profile routes
 │   ├── middleware/           # Express middleware
 │   │   └── auth.js          # JWT verification
 │   ├── index.js              # Server entry point
+│   ├── check-backend.js      # Config validation script
 │   ├── package.json
 │   └── .env.example          # Environment template
 │
-├── colab_backend.ipynb        # AI training notebook
+├── tabular_engine/            # Tabular AI engine (CPU-only)
+│   ├── app.py                # Flask server (port 5001)
+│   ├── requirements.txt      # Python dependencies
+│   └── workdir/              # Project workspaces (CSV I/O)
+│
+├── colab_backend.ipynb        # Image AI training notebook (GPU)
 ├── LICENSE
-└── README.md                  # This file
+├── README.md                  # This file
+└── SynthAug_Project_Report.tex # LaTeX report
 ```
 
 ---
@@ -359,6 +562,15 @@ If you see a blank dashboard:
 - Ensure MongoDB Atlas allows connections from your IP
 - Check firewall settings
 - Verify `.env` file exists and is configured correctly
+
+### Tabular Engine Not Responding
+
+- Verify Flask app is running: `python tabular_engine/app.py`
+- Check console output shows "Running on http://127.0.0.1:5001"
+- Verify `TABULAR_ENGINE_URL=http://localhost:5001` in `server/.env`
+- Check port 5001 is not in use by another process
+- Ensure Python dependencies installed: `pip install -r tabular_engine/requirements.txt`
+- Look for errors in Python terminal output
 
 ### AI Engine Not Responding
 
@@ -494,8 +706,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Storage
 
-- Generated images stored temporarily on Colab
-- Download results before session expires
+- **Image projects**: Generated images stored temporarily on Colab - download before session expires
+- **Numeric projects**: CSV files stored in `tabular_engine/workdir/{projectId}/` - automatically persisted locally
 - Consider implementing cloud storage (AWS S3, Google Cloud Storage) for production
 
 ---
@@ -555,21 +767,6 @@ Want to learn more about the technologies used?
 - Train for more iterations (production mode)
 - Ensure dataset has variety but maintains consistent style
 - Minimum 50-100 images recommended for good results
-
----
-
-## 🎯 Roadmap
-
-- [ ] Add support for custom resolutions
-- [ ] Implement image preview in upload
-- [ ] Add training progress graphs
-- [ ] Support for video generation
-- [ ] Batch project processing
-- [ ] Cloud storage integration
-- [ ] Admin dashboard
-- [ ] Payment integration
-- [ ] API access for developers
-- [ ] Model export functionality
 
 ---
 
