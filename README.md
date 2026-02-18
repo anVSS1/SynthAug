@@ -92,8 +92,6 @@ Before you begin, ensure you have:
 
 ## 🚀 Complete Setup Guide - Start to Finish
 
-> 📚 **Quick Reference:** See [STARTUP_CHECKLIST.md](STARTUP_CHECKLIST.md) for a detailed step-by-step checklist
-
 The application consists of **four components** that must run simultaneously:
 
 1. **Backend Server** (Node.js + Express + MongoDB)
@@ -108,7 +106,7 @@ Follow these steps in order:
 ### STEP 1: Clone the Repository
 
 ```bash
-git clone <your-repository-url>
+git clone https://github.com/anVSS1/SynthAug.git
 cd "SaaS GANs"
 ```
 
