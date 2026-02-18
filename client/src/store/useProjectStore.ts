@@ -90,11 +90,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   startTraining: async (projectId) => {
     try {
       set({ status: "training" });
+      get().addLog("Training started. This may take 30 minutes to 2 hours...");
       await api.post(`/proxy/${projectId}/train`);
 
       let pollCount = 0;
       const pollIntervalMs = 10000;
-      const maxPolls = 180; // 30 minutes max (180 * 10 seconds)
+      const maxPolls = 1800; // 5 hours max (1800 * 10 seconds)
 
       // Poll for completion
       const pollInterval = setInterval(async () => {
@@ -104,7 +105,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           if (pollCount > maxPolls) {
             clearInterval(pollInterval);
             set({ status: "failed" });
-            get().addLog("Training timeout - exceeded maximum time.");
+            get().addLog(
+              "Training timed out after 5 hours. Check Colab for details.",
+            );
             return;
           }
 
