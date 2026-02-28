@@ -202,6 +202,15 @@ const Studio = () => {
 
     const trainingConfig = { ...config };
 
+    try {
+      await api.put(`/projects/${projectId}`, { config: trainingConfig });
+      addLog("Training settings saved.");
+    } catch (error: any) {
+      addLog(`Failed to save settings: ${error.message}`);
+      setStatus("failed");
+      return;
+    }
+
     // For tabular projects, auto-upload CSV first if not already uploaded
     if (trainingConfig.dataType === "tabular" && files.length > 0) {
       addLog("Auto-uploading CSV before training...");

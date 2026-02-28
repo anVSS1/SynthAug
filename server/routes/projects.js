@@ -108,15 +108,30 @@ router.get("/:id", auth, async (req, res) => {
 });
 
 // @route   PUT api/projects/:id
-// @desc    Update project name
+// @desc    Update project name and/or config
 // @access  Private
 router.put(
   "/:id",
-  [auth, [check("name", "Name is required").not().isEmpty()]],
+  [
+    auth,
+    [
+      check("name").optional().not().isEmpty(),
+      check("config.dataType").optional().isIn(["image", "tabular"]),
+      check("config.preset").optional().isIn(["draft", "studio"]),
+      check("config.count").optional().isInt({ min: 1 }),
+      check("config.tabularModel").optional().isIn(["ctgan", "gaussian"]),
+    ],
+  ],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
+    }
+
+    const hasName = typeof req.body.name === "string";
+    const hasConfig = !!req.body.config;
+    if (!hasName && !hasConfig) {
+      return res.status(400).json({ msg: "Provide name and/or config." });
     }
 
     try {
@@ -130,7 +145,34 @@ router.put(
         return res.status(401).json({ msg: "Not authorized" });
       }
 
-      project.name = req.body.name;
+      if (hasName) {
+        project.name = req.body.name;
+      }
+
+      if (hasConfig) {
+        const incomingConfig = req.body.config || {};
+        const currentConfig = project.config || {};
+        project.config = {
+          dataType:
+            incomingConfig.dataType === "tabular"
+              ? "tabular"
+              : currentConfig.dataType || "image",
+          preset:
+            incomingConfig.preset === "studio"
+              ? "studio"
+              : currentConfig.preset || "draft",
+          count: Number.isInteger(incomingConfig.count)
+            ? incomingConfig.count
+            : Number.isInteger(currentConfig.count)
+              ? currentConfig.count
+              : 500,
+          tabularModel:
+            incomingConfig.tabularModel === "gaussian"
+              ? "gaussian"
+              : currentConfig.tabularModel || "ctgan",
+        };
+      }
+
       await project.save();
 
       res.json(project);
